@@ -54,7 +54,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBJtvWhlwPNsfuBFaRbe2KfWpjnPQj5ABc',
-    appId: '1:783935422542:android:0728e85ef5ab9017d0031f',
+    appId: '1:783935422542:android:d5fb1832c895fecbd0031f',
     messagingSenderId: '783935422542',
     projectId: 'map-pastyear',
     storageBucket: 'map-pastyear.appspot.com',
