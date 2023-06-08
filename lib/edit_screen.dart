@@ -4,6 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:map_exam/note.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+final NavigatorState navigator = navigatorKey.currentState!;
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
+final ScaffoldMessengerState scaffoldMessenger =
+    scaffoldMessengerKey.currentState!;
+
 enum EditScreenMode {
   create,
   edit,

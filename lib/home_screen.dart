@@ -1,211 +1,174 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:map_exam/notes_add.dart';
 import 'package:map_exam/edit_screen.dart';
 import 'package:map_exam/note.dart';
-import 'package:map_exam/view_note.dart';
+import 'package:map_exam/routes.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+final NavigatorState navigator = navigatorKey.currentState!;
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
+final ScaffoldMessengerState scaffoldMessenger =
+    scaffoldMessengerKey.currentState!;
 
 class HomeScreen extends StatefulWidget {
-  static Route route() => MaterialPageRoute(builder: (_) => const HomeScreen());
-
+  static WidgetBuilder route() => (_) => const HomeScreen();
   const HomeScreen({Key? key}) : super(key: key);
-
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   List<Note> notes = [];
-  bool showLess = false;
-  int? selectedNoteIndex; // Track the index of the selected note
-  bool editingToolsVisible = false; // Track the visibility of editing tools
+  int editingToolsIndex = -1;
+  bool isLoading = true;
+  bool showContent = true;
 
-  @override
-  void initState() {
-    super.initState();
-    fetchUserNotes();
-  }
-
-  void fetchUserNotes() async {
-    final User? user = _auth.currentUser;
-    if (user != null) {
-      final QuerySnapshot querySnapshot = await FirebaseFirestore.instance
-          .collection('notes')
-          .where('email', isEqualTo: user.email)
-          .get();
-
-      final List<Note> userNotes = querySnapshot.docs
-          .map((document) => Note.fromJson({
-                ...document.data() as Map<String, dynamic>,
-                'id': document.id, // Assign the document ID to the 'id' field
-              }))
-          .toList();
-
-      setState(() {
-        notes = userNotes;
-      });
-    }
-  }
-
-  void toggleShowLess() {
-    setState(() {
-      showLess = !showLess;
-    });
-  }
-
-  void addNote() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-          builder: (context) => AddNotesScreen(onNoteAdded: () {
-                fetchUserNotes(); // Fetch the updated notes after adding a new note
-              })),
-    );
-  }
-
-  void deleteNote(Note note) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('notes')
-          .doc(note.id)
-          .delete();
-      fetchUserNotes(); // Fetch the updated notes after deleting a note
-    } catch (e) {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return AlertDialog(
-            title: const Text('Error'),
-            content: const Text('Failed to delete the note. Please try again.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
-      );
-    }
-  }
-
-  void editNote(Note note) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => EditScreen(note: note)),
-    );
-    fetchUserNotes(); // Fetch the updated notes after editing a note
-  }
-
-  void viewNote(Note note) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => ViewNotes(note: note)),
-    );
+  void toggleContent() {
+    setState(() => showContent = !showContent);
   }
 
   void toggleEditingTools(int index) {
-    setState(() {
-      if (selectedNoteIndex == index) {
-        // Same note title long-pressed again
-        editingToolsVisible = !editingToolsVisible;
-      } else {
-        // Different note title long-pressed
-        selectedNoteIndex = index;
-        editingToolsVisible = true;
-      }
+    int newIndex = index == editingToolsIndex ? -1 : index;
+    setState(() => editingToolsIndex = newIndex);
+  }
+
+  void viewNote(Note note) {
+    navigator.pushNamed(Routes.edit,
+        arguments: EditScreenArguments(
+          mode: EditScreenMode.view,
+          note: note,
+        ));
+  }
+
+  void editNote(Note note) {
+    navigator.pushNamed(Routes.edit,
+        arguments: EditScreenArguments(
+          mode: EditScreenMode.edit,
+          note: note,
+        ));
+  }
+
+  void addNewNote() {
+    navigator.pushNamed(Routes.edit,
+        arguments: EditScreenArguments(
+          mode: EditScreenMode.create,
+        ));
+  }
+
+  Future<void> deleteNote(Note note) async {
+    await FirebaseFirestore.instance.collection('notes').doc(note.id).delete();
+
+    scaffoldMessengerKey.currentState
+        ?.showSnackBar(const SnackBar(content: Text('Note deleted')));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) navigator.pushNamed(Routes.login);
+
+    FirebaseFirestore.instance
+        .collection('notes')
+        .where('uid', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
+        .snapshots()
+        .listen((snapshot) {
+      setState(() {
+        isLoading = false;
+        notes = snapshot.docs.map((doc) {
+          Map<String, dynamic> data = doc.data();
+          data['id'] = doc.id;
+          return Note.fromJson(data);
+        }).toList();
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Notes'),
-        actions: [
-          CircleAvatar(
-            backgroundColor: Colors.blue.shade200,
-            child: const Text(
-              '4',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22.0),
+      appBar: appBar(notes.length),
+      floatingActionButton: floatingActionButton(),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.separated(
+              itemCount: notes.length,
+              separatorBuilder: (context, index) =>
+                  const Divider(color: Colors.blueGrey),
+              itemBuilder: (context, index) => noteTile(notes[index], index),
             ),
+    );
+  }
+
+  AppBar appBar(int count) {
+    return AppBar(
+      title: const Text('My Notes'),
+      actions: [
+        CircleAvatar(
+          backgroundColor: Colors.blue.shade200,
+          child: Text(
+            count.toString(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 22.0),
           ),
-          const SizedBox(
-            width: 10,
-          ),
-        ],
-      ),
-      body: ListView.builder(
-        itemCount: notes.length,
-        itemBuilder: (context, index) {
-          final note = notes[index];
-          return Column(
-            children: [
-              ListTile(
-                trailing: SizedBox(
-                  width: 110.0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      if (selectedNoteIndex == index && editingToolsVisible)
-                        IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
-                          onPressed: () => editNote(note),
-                        ),
-                      if (selectedNoteIndex == index && editingToolsVisible)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            color: Colors.blue,
-                          ),
-                          onPressed: () => deleteNote(note),
-                        ),
-                    ],
-                  ),
-                ),
-                title: GestureDetector(
-                  child: Text(note.title ?? ''),
-                  onLongPress: () => toggleEditingTools(index),
-                ),
-                subtitle: showLess ? null : Text(note.content ?? ''),
-                onTap: () => viewNote(note),
-                onLongPress: () => toggleEditingTools(index),
-              ),
-              const Divider(
-                color: Colors.grey,
-                height: 15.0,
-                thickness: 1.5,
-              ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: Row(
+        ),
+        const SizedBox(width: 10),
+      ],
+    );
+  }
+
+  Widget noteTile(Note note, int index) {
+    final trailingButtons = SizedBox(
+      width: 110.0,
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          FloatingActionButton(
-            heroTag: 'showLess',
-            child: showLess
-                ? const Icon(Icons.menu)
-                : const Icon(Icons.expand_circle_down),
-            tooltip: showLess
-                ? 'Show more. Display notes content'
-                : 'Show less. Hide notes content',
-            onPressed: toggleShowLess,
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.blue),
+            onPressed: () => editNote(note),
           ),
-          const SizedBox(width: 10.0),
-          FloatingActionButton(
-            heroTag: 'addNote',
-            child: const Icon(Icons.add),
-            tooltip: 'Add a new note',
-            onPressed: addNote,
+          IconButton(
+            icon: const Icon(
+              Icons.delete,
+              color: Colors.blue,
+            ),
+            onPressed: () => deleteNote(note),
           ),
         ],
       ),
+    );
+
+    return ListTile(
+      title: Text(note.title ?? 'Untitled Note'),
+      subtitle: showContent ? Text(note.content ?? '') : null,
+      trailing: editingToolsIndex == index ? trailingButtons : null,
+      onTap: () => viewNote(note),
+      onLongPress: () => toggleEditingTools(index),
+    );
+  }
+
+  Widget floatingActionButton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        FloatingActionButton(
+            heroTag: 'show-more',
+            tooltip: 'Show less. Hide notes content',
+            onPressed: toggleContent,
+            child: Icon(
+              showContent ? Icons.unfold_less : Icons.unfold_more,
+            )),
+        FloatingActionButton(
+          heroTag: 'add-note',
+          tooltip: 'Add a new note',
+          onPressed: addNewNote,
+          child: const Icon(Icons.add),
+        ),
+      ],
     );
   }
 }
