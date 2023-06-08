@@ -1,28 +1,43 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:map_exam/login_screen.dart';
-// import 'login_screen.dart';
-// import 'home_screen.dart';
-// import 'edit_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(const App());
+import 'routes.dart';
+
+import 'firebase_options.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+final NavigatorState navigator = navigatorKey.currentState!;
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
+final ScaffoldMessengerState scaffoldMessenger =
+    scaffoldMessengerKey.currentState!;
+
+Future<void> main() async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(const MainApp());
 }
 
-class App extends StatelessWidget {
-  const App({Key? key}) : super(key: key);
+final ThemeData theme = ThemeData(
+  primarySwatch: Colors.blue,
+);
+
+class MainApp extends StatelessWidget {
+  const MainApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'MAP Exam',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const LoginScreen(),
-      // home: const EditScreen(),
+      theme: theme,
+      initialRoute: Routes.login,
+      routes: Routes.routes,
+      navigatorKey: navigatorKey,
+      scaffoldMessengerKey: scaffoldMessengerKey,
     );
   }
 }
